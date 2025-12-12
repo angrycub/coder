@@ -122,3 +122,22 @@ func TestUpdate_LicenseRequiresTelemetry(t *testing.T) {
 	require.True(t, set.Enabled(codersdk.FeatureAppearance))
 	require.Equal(t, []string{entitlements.ErrLicenseRequiresTelemetry.Error()}, set.Errors())
 }
+
+func TestHasErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoErrors", func(t *testing.T) {
+		t.Parallel()
+		set := entitlements.New()
+		require.False(t, set.HasErrors())
+	})
+
+	t.Run("WithErrors", func(t *testing.T) {
+		t.Parallel()
+		set := entitlements.New()
+		set.Modify(func(e *codersdk.Entitlements) {
+			e.Errors = []string{"multiple replicas without HA license"}
+		})
+		require.True(t, set.HasErrors())
+	})
+}

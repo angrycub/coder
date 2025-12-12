@@ -167,3 +167,12 @@ func (l *Set) HasLicense() bool {
 	defer l.entitlementsMu.RUnlock()
 	return l.entitlements.HasLicense
 }
+
+// HasErrors returns true if there are any entitlement errors.
+// This can be used for readiness checks to detect issues like
+// multiple replicas without a license for high availability.
+func (l *Set) HasErrors() bool {
+	l.entitlementsMu.RLock()
+	defer l.entitlementsMu.RUnlock()
+	return len(l.entitlements.Errors) > 0
+}
