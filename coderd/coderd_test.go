@@ -260,6 +260,21 @@ func TestHealthz(t *testing.T) {
 	assert.Equal(t, "OK", string(body))
 }
 
+func TestReadyz(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+
+	res, err := client.Request(context.Background(), http.MethodGet, "/readyz", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, "OK", string(body))
+}
+
 func TestSwagger(t *testing.T) {
 	t.Parallel()
 
