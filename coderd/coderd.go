@@ -909,6 +909,7 @@ func New(options *Options) *API {
 	r.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("OK")) })
+	r.Get("/readyz", api.readyz)
 
 	// Attach workspace apps routes.
 	r.Group(func(r chi.Router) {
