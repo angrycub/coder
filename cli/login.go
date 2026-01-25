@@ -153,7 +153,13 @@ func (r *RootCmd) login() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "login [<url>]",
 		Short: "Authenticate with Coder deployment",
-		Long: "By default, the session token is stored in the operating system keyring on " +
+		Long: "Authenticate with a Coder deployment.\n\n" +
+			"The deployment URL is resolved in the following priority order:\n" +
+			"  1. Command argument (if provided)\n" +
+			"  2. --url flag or CODER_URL environment variable\n" +
+			"  3. URL file in the configuration directory (~/.config/coderv2/url)\n" +
+			"  4. Default: http://127.0.0.1:3000\n\n" +
+			"By default, the session token is stored in the operating system keyring on " +
 			"macOS and Windows and a plain text file on Linux. Use the --use-keyring flag " +
 			"or CODER_USE_KEYRING environment variable to change the storage mechanism.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
@@ -163,24 +169,32 @@ func (r *RootCmd) login() *serpent.Command {
 			rawURL := ""
 			var urlSource string
 
-			if len(inv.Args) == 0 {
+			// Priority order:
+			// 1. Command argument (explicit is highest priority)
+			// 2. --url flag or CODER_URL environment variable
+			// 3. URL file in coderv2 folder
+			// 4. Default (http://127.0.0.1:3000)
+			if len(inv.Args) > 0 {
+				rawURL = inv.Args[0]
+				urlSource = "argument"
+			} else {
 				rawURL = r.clientURL.String()
 				urlSource = "flag"
 				if rawURL != "" && rawURL == inv.Environ.Get(envURL) {
 					urlSource = "environment"
 				}
-			} else {
-				rawURL = inv.Args[0]
-				urlSource = "argument"
-			}
 
-			if url, err := r.createConfig().URL().Read(); rawURL == "" && err == nil {
-				urlSource = "config"
-				rawURL = url
+				if rawURL == "" {
+					if url, err := r.createConfig().URL().Read(); err == nil && url != "" {
+						urlSource = "config"
+						rawURL = url
+					}
+				}
 			}
 
 			if rawURL == "" {
-				return xerrors.Errorf("no url argument provided")
+				rawURL = "http://127.0.0.1:3000"
+				urlSource = "default"
 			}
 
 			if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
