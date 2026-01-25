@@ -537,3 +537,159 @@ func TestLogin(t *testing.T) {
 		require.Equal(t, selected, first.OrganizationID.String())
 	})
 }
+
+// TestLoginURLPrecedence tests the priority order for URL resolution.
+// Priority order:
+// 1. Command argument (highest)
+// 2. --url flag or CODER_URL environment variable
+// 3. URL file in coderv2 folder
+// 4. Default http://127.0.0.1:3000 (lowest)
+func TestLoginURLPrecedence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ArgumentOverridesEnvironment", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		// Set environment variable to a different URL.
+		wrongURL := "http://wrong-url.example.com"
+
+		inv, _ := clitest.New(t, "login", client.URL.String(), "--no-open")
+		inv.Environ.Set("CODER_URL", wrongURL)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		// Should use argument URL, not environment URL.
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with argument URL: '%s'", client.URL.String()))
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		<-doneChan
+	})
+
+	t.Run("ArgumentOverridesConfig", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		// Create a config file with a different URL.
+		inv, root := clitest.New(t, "login", client.URL.String(), "--no-open")
+		wrongURL := "http://wrong-url.example.com"
+		err := root.URL().Write(wrongURL)
+		require.NoError(t, err)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		// Should use argument URL, not config URL.
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with argument URL: '%s'", client.URL.String()))
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		<-doneChan
+	})
+
+	t.Run("EnvironmentOverridesConfig", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		// Create a config file with a different URL.
+		inv, root := clitest.New(t, "login", "--no-open")
+		wrongURL := "http://wrong-url.example.com"
+		err := root.URL().Write(wrongURL)
+		require.NoError(t, err)
+
+		// Set environment variable to the correct URL.
+		inv.Environ.Set("CODER_URL", client.URL.String())
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		// Should use environment URL, not config URL.
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with environment URL: '%s'", client.URL.String()))
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		<-doneChan
+	})
+
+	t.Run("FlagOverridesConfig", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		// Create a config file with a different URL.
+		inv, root := clitest.New(t, "login", "--url", client.URL.String(), "--no-open")
+		wrongURL := "http://wrong-url.example.com"
+		err := root.URL().Write(wrongURL)
+		require.NoError(t, err)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		// Should use flag URL, not config URL.
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with flag URL: '%s'", client.URL.String()))
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		<-doneChan
+	})
+
+	t.Run("ConfigOverridesDefault", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		// Create a config file with the correct URL, no environment or flag set.
+		inv, root := clitest.New(t, "login", "--no-open")
+		err := root.URL().Write(client.URL.String())
+		require.NoError(t, err)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		// Should use config URL, not default.
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with config URL: '%s'", client.URL.String()))
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		<-doneChan
+	})
+
+	t.Run("DefaultWhenNothingSet", func(t *testing.T) {
+		t.Parallel()
+
+		// No argument, no environment, no config file, no flag.
+		inv, _ := clitest.New(t, "login", "--no-open")
+
+		err := inv.Run()
+		// This will error because default URL won't connect to a real server.
+		require.Error(t, err)
+		// The error should mention the default URL.
+		require.ErrorContains(t, err, "http://127.0.0.1:3000")
+		require.ErrorContains(t, err, "Failed to check server")
+	})
+}
