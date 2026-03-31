@@ -20,10 +20,10 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 	const displayResources = shouldDisplayHideResources
 		? resources
 		: resources
-				.filter((resource) => !resource.hide)
+				.filter((resource) => !resource.hide || resource.daily_cost > 0)
 				// Display the resources with agents first
 				.sort((a, b) => countAgents(b) - countAgents(a));
-	const hasHideResources = resources.some((r) => r.hide);
+	const hasHideResources = resources.some((r) => r.hide && r.daily_cost === 0);
 
 	return (
 		<Stack direction="column" spacing={0} className="bg-surface-primary">
