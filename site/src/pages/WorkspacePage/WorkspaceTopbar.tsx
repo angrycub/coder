@@ -180,7 +180,10 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 							</TopbarIcon>
 
 							<span>
-								{workspace.latest_build.daily_cost}{" "}
+								<ResourceCostTooltip
+									resources={workspace.latest_build.resources}
+									dailyCost={workspace.latest_build.daily_cost}
+								/>{" "}
 								<span css={{ color: theme.palette.text.secondary }}>
 									credits of
 								</span>{" "}
@@ -189,7 +192,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						</TopbarData>
 					</Link>
 				)}
-
 				{shouldDisplayDormantData && (
 					<TopbarData>
 						<TopbarIcon>
@@ -421,3 +423,54 @@ const styles = {
 		textOverflow: "ellipsis",
 	},
 } satisfies Record<string, Interpolation<Theme>>;
+
+type ResourceCostTooltipProps = Readonly<{
+	resources: readonly TypesGen.WorkspaceResource[];
+	dailyCost: number;
+}>;
+
+const ResourceCostTooltip: FC<ResourceCostTooltipProps> = ({
+	resources,
+	dailyCost,
+}) => {
+	const costResources = resources.filter((r) => r.daily_cost > 0);
+
+	if (costResources.length === 0) {
+		return <span>{dailyCost}</span>;
+	}
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span className="cursor-default border-0 border-b border-dashed border-current">
+					{dailyCost}
+				</span>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" className="max-w-64 p-0">
+				<div className="px-3 pt-2 pb-1 text-2xs font-medium text-content-secondary">
+					Resource breakdown
+				</div>
+				<ul className="m-0 list-none p-0">
+					{costResources.map((r) => (
+						<li
+							key={r.id}
+							className="flex items-center justify-between gap-4 px-3 py-1 text-xs"
+						>
+							<span className="truncate text-content-secondary">
+								{r.name}
+								<span className="ml-1 text-content-disabled">{r.type}</span>
+							</span>
+							<span className="shrink-0 tabular-nums text-content-primary">
+								{r.daily_cost}
+							</span>
+						</li>
+					))}
+				</ul>
+				<div className="flex items-center justify-between gap-4 border-0 border-t border-solid border-border px-3 py-1.5 text-xs font-medium">
+					<span className="text-content-secondary">Total</span>
+					<span className="tabular-nums text-content-primary">{dailyCost}</span>
+				</div>
+			</TooltipContent>
+		</Tooltip>
+	);
+};

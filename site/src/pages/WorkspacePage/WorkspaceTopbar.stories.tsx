@@ -9,6 +9,7 @@ import {
 	MockTemplateVersion,
 	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceResource,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -281,6 +282,31 @@ export const WithFarAwayDeadlineRequiredByTemplate: Story = {
 };
 
 export const WithQuotaNoOrgs: Story = {
+	args: {
+		workspace: {
+			...baseWorkspace,
+			latest_build: {
+				...baseWorkspace.latest_build,
+				daily_cost: 30,
+				resources: [
+					{
+						...MockWorkspaceResource,
+						id: "resource-volume",
+						name: "home_volume",
+						type: "docker_volume",
+						daily_cost: 10,
+					},
+					{
+						...MockWorkspaceResource,
+						id: "resource-container",
+						name: "workspace",
+						type: "docker_container",
+						daily_cost: 20,
+					},
+				],
+			},
+		},
+	},
 	parameters: {
 		showOrganizations: false,
 		queries: [
@@ -299,6 +325,31 @@ export const WithQuotaNoOrgs: Story = {
 };
 
 export const WithQuotaWithOrgs: Story = {
+	args: {
+		workspace: {
+			...baseWorkspace,
+			latest_build: {
+				...baseWorkspace.latest_build,
+				daily_cost: 30,
+				resources: [
+					{
+						...MockWorkspaceResource,
+						id: "resource-volume",
+						name: "home_volume",
+						type: "docker_volume",
+						daily_cost: 10,
+					},
+					{
+						...MockWorkspaceResource,
+						id: "resource-container",
+						name: "workspace",
+						type: "docker_container",
+						daily_cost: 20,
+					},
+				],
+			},
+		},
+	},
 	parameters: {
 		showOrganizations: true,
 		queries: [
@@ -313,6 +364,59 @@ export const WithQuotaWithOrgs: Story = {
 				} satisfies WorkspaceQuota,
 			},
 		],
+	},
+};
+
+export const WithQuotaTooltipOpen: Story = {
+	args: {
+		workspace: {
+			...baseWorkspace,
+			latest_build: {
+				...baseWorkspace.latest_build,
+				daily_cost: 30,
+				resources: [
+					{
+						...MockWorkspaceResource,
+						id: "resource-volume",
+						name: "home_volume",
+						type: "docker_volume",
+						daily_cost: 10,
+					},
+					{
+						...MockWorkspaceResource,
+						id: "resource-container",
+						name: "workspace",
+						type: "docker_container",
+						daily_cost: 20,
+					},
+				],
+			},
+		},
+	},
+	parameters: {
+		showOrganizations: false,
+		queries: [
+			{
+				key: getWorkspaceQuotaQueryKey(
+					MockOrganization.name,
+					MockUserOwner.username,
+				),
+				data: {
+					credits_consumed: 2,
+					budget: 40,
+				} satisfies WorkspaceQuota,
+			},
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("hover over cost to show resource breakdown", async () => {
+			await userEvent.hover(canvas.getByText("30"));
+			await waitFor(() =>
+				expect(screen.getByText("Resource breakdown")).toBeInTheDocument(),
+			);
+		});
 	},
 };
 
