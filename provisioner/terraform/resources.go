@@ -765,7 +765,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 	}
 
-	for _, resource := range managedNonCoderResources(sortedResources) {
+	for _, resource := range managedNonCoderResources(sortedResources, resourceCost) {
 		label := convertAddressToLabel(resource.Address)
 		modulePath, err := convertAddressToModulePath(resource.Address)
 		if err != nil {
@@ -1146,9 +1146,11 @@ func sortResourcesByType(tfResourcesByLabel map[string]map[string]*tfjson.StateR
 }
 
 // managedNonCoderResources returns all managed resources that are not
-// internal Coder types, sorted by address. It uses the pre-grouped
-// map from sortResourcesByType.
-func managedNonCoderResources(byType map[string][]*tfjson.StateResource) []*tfjson.StateResource {
+// internal Coder types, sorted by address. Coder-internal resources
+// (e.g. coder_agent) are normally excluded, but are included when
+// they carry a daily_cost via coder_metadata so the cost remains
+// visible to users.
+func managedNonCoderResources(byType map[string][]*tfjson.StateResource, costs map[string]int32) []*tfjson.StateResource {
 	skip := map[string]bool{
 		"coder_script": true, "coder_agent": true,
 		"coder_agent_instance": true, "coder_app": true,
@@ -1156,12 +1158,18 @@ func managedNonCoderResources(byType map[string][]*tfjson.StateResource) []*tfjs
 	}
 	var result []*tfjson.StateResource
 	for resourceType, resources := range byType {
-		if skip[resourceType] {
-			continue
-		}
+		skipType := skip[resourceType]
 		for _, resource := range resources {
 			if resource.Mode == tfjson.DataResourceMode {
 				continue
+			}
+			if skipType {
+				// Include skipped Coder types only when they
+				// have been assigned a cost via coder_metadata.
+				label := convertAddressToLabel(resource.Address)
+				if costs[label] <= 0 {
+					continue
+				}
 			}
 			result = append(result, resource)
 		}
