@@ -435,7 +435,21 @@ const ResourceCostTooltip: FC<ResourceCostTooltipProps> = ({
 }) => {
 	const costResources = resources.filter((r) => r.daily_cost > 0);
 
-	if (costResources.length === 0) {
+	// The build-level daily_cost includes costs from Coder-internal
+	// resources (e.g. coder_agent) that are not represented as visible
+	// workspace resources. Show the difference as "Coder resources".
+	//
+	// TODO: Update the Coder Terraform provider to emit a warning when
+	// daily_cost is assigned via coder_metadata to a Coder resource type
+	// (coder_agent, coder_app, etc.) so template authors understand that
+	// those costs won't appear discretely in the UI.
+	const visibleCostTotal = costResources.reduce(
+		(sum, r) => sum + r.daily_cost,
+		0,
+	);
+	const coderResourceCost = dailyCost - visibleCostTotal;
+
+	if (costResources.length === 0 && coderResourceCost <= 0) {
 		return <span>{dailyCost}</span>;
 	}
 
@@ -465,6 +479,16 @@ const ResourceCostTooltip: FC<ResourceCostTooltipProps> = ({
 							</span>
 						</li>
 					))}
+					{coderResourceCost > 0 && (
+						<li className="flex items-center justify-between gap-4 px-3 py-1 text-xs">
+							<span className="truncate text-content-secondary italic">
+								Coder resources
+							</span>
+							<span className="shrink-0 tabular-nums text-content-primary">
+								{coderResourceCost}
+							</span>
+						</li>
+					)}
 				</ul>
 				<div className="flex items-center justify-between gap-4 border-0 border-t border-solid border-border px-3 py-1.5 text-xs font-medium">
 					<span className="text-content-secondary">Total</span>

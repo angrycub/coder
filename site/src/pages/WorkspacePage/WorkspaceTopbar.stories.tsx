@@ -373,7 +373,7 @@ export const WithQuotaTooltipOpen: Story = {
 			...baseWorkspace,
 			latest_build: {
 				...baseWorkspace.latest_build,
-				daily_cost: 30,
+				daily_cost: 35,
 				resources: [
 					{
 						...MockWorkspaceResource,
@@ -412,9 +412,9 @@ export const WithQuotaTooltipOpen: Story = {
 		const canvas = within(canvasElement);
 
 		await step("hover over cost to show resource breakdown", async () => {
-			await userEvent.hover(canvas.getByText("30"));
+			await userEvent.hover(canvas.getByText("35"));
 			await waitFor(() =>
-				expect(screen.getByText("Resource breakdown")).toBeInTheDocument(),
+				expect(screen.getByText("Coder resources")).toBeInTheDocument(),
 			);
 		});
 	},
