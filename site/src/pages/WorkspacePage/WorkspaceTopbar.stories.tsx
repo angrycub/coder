@@ -373,7 +373,7 @@ export const WithQuotaTooltipOpen: Story = {
 			...baseWorkspace,
 			latest_build: {
 				...baseWorkspace.latest_build,
-				daily_cost: 35,
+				daily_cost: 30,
 				resources: [
 					{
 						...MockWorkspaceResource,
@@ -412,11 +412,67 @@ export const WithQuotaTooltipOpen: Story = {
 		const canvas = within(canvasElement);
 
 		await step("hover over cost to show resource breakdown", async () => {
-			await userEvent.hover(canvas.getByText("35"));
+			await userEvent.hover(canvas.getByText("30"));
 			await waitFor(() =>
-				expect(screen.getByText("Coder resources")).toBeInTheDocument(),
+				expect(screen.getByText("Resource breakdown")).toBeInTheDocument(),
 			);
 		});
+	},
+};
+
+export const WithQuotaTooltipCoderResources: Story = {
+	args: {
+		workspace: {
+			...baseWorkspace,
+			latest_build: {
+				...baseWorkspace.latest_build,
+				daily_cost: 35,
+				resources: [
+					{
+						...MockWorkspaceResource,
+						id: "resource-volume",
+						name: "home_volume",
+						type: "docker_volume",
+						daily_cost: 10,
+					},
+					{
+						...MockWorkspaceResource,
+						id: "resource-container",
+						name: "workspace",
+						type: "docker_container",
+						daily_cost: 20,
+					},
+				],
+			},
+		},
+	},
+	parameters: {
+		showOrganizations: false,
+		queries: [
+			{
+				key: getWorkspaceQuotaQueryKey(
+					MockOrganization.name,
+					MockUserOwner.username,
+				),
+				data: {
+					credits_consumed: 2,
+					budget: 40,
+				} satisfies WorkspaceQuota,
+			},
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step(
+			"hover over cost to show Coder resources remainder",
+			async () => {
+				await userEvent.hover(canvas.getByText("35"));
+				await waitFor(() =>
+					expect(screen.getByText("Coder resources")).toBeInTheDocument(),
+				);
+			},
+		);
 	},
 };
 
