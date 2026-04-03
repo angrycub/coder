@@ -5,8 +5,14 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
+	"regexp"
 	"sort"
+	"strings"
 
+	_ "embed"
+
+	"cdr.dev/slog/v3"
 	"github.com/go-chi/chi/v5"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -15,6 +21,82 @@ import (
 )
 
 const portkeyBulkBaseURL = "https://configs.portkey.ai/pricing"
+
+// litellmContextWindowData is the vendored LiteLLM context window dataset.
+// Keys are either bare model IDs or "{provider}/{model}" slugs.
+// Values are max_input_tokens integers.
+//
+//go:embed litellm_context_window.json
+var litellmContextWindowData []byte
+
+// googleTierSuffix matches Portkey's pricing-tier suffixes on Google model IDs,
+// e.g. "gemini-1.5-flash-lte-128k" or "gemini-1.5-pro-latest-gt-128k".
+var googleTierSuffix = regexp.MustCompile(`-(lte|gt|latest-lte|latest-gt)-\d+k$`)
+
+// contextWindowLookup builds a map from model ID to max_input_tokens from
+// either a user-supplied file path (for air-gapped deployments) or the
+// embedded vendored copy.
+func contextWindowLookup(overridePath string) (map[string]int64, error) {
+	raw := litellmContextWindowData
+	if overridePath != "" {
+		b, err := os.ReadFile(overridePath)
+		if err != nil {
+			return nil, fmt.Errorf("read litellm context window file %q: %w", overridePath, err)
+		}
+		raw = b
+	}
+	var m map[string]int64
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, fmt.Errorf("parse litellm context window data: %w", err)
+	}
+	return m, nil
+}
+
+// lookupContextWindow finds the max_input_tokens for a model ID.
+// It tries the following in order:
+//  1. Exact key match (handles most providers already in the dataset)
+//  2. "{litellmProvider}/{modelID}" variants for providers that use prefixed keys
+//  3. Google-specific: strip the Portkey pricing-tier suffix and retry
+func lookupContextWindow(ctxMap map[string]int64, modelID string, litellmProviders []string) *int64 {
+	if v, ok := ctxMap[modelID]; ok {
+		return ptr.Ref(v)
+	}
+	for _, prov := range litellmProviders {
+		if v, ok := ctxMap[prov+"/"+modelID]; ok {
+			return ptr.Ref(v)
+		}
+	}
+	// Google tier-suffix normalization
+	if googleTierSuffix.MatchString(modelID) {
+		normalized := googleTierSuffix.ReplaceAllString(modelID, "")
+		if v, ok := ctxMap[normalized]; ok {
+			return ptr.Ref(v)
+		}
+	}
+	return nil
+}
+
+// portkeyToLiteLLMProviders maps a Portkey provider slug to the LiteLLM
+// prefix(es) used for that provider's models in the context window dataset.
+var portkeyToLiteLLMProviders = map[string][]string{
+	"openai":        {},                           // bare keys e.g. "gpt-4o"
+	"anthropic":     {},                           // bare aliases added during vendoring
+	"google":        {"gemini"},                   // "gemini/gemini-2.0-flash"
+	"azure-openai":  {"azure"},                    // "azure/gpt-4o"
+	"bedrock":       {},                           // bare keys e.g. "anthropic.claude-3-5-sonnet-..."
+	"vertex-ai":     {"vertex_ai"},                // "vertex_ai/gemini-2.0-flash"
+	"groq":          {"groq"},                     // "groq/llama-3.3-70b-versatile"
+	"deepseek":      {"deepseek"},
+	"x-ai":          {"xai"},                      // "xai/grok-2"
+	"cohere":        {"cohere"},
+	"mistral-ai":    {"mistral", "codestral"},
+	"fireworks-ai":  {"fireworks_ai"},
+	"perplexity-ai": {"perplexity"},
+	"together-ai":   {"together_ai"},
+	"anyscale":      {"anyscale"},
+	"deepinfra":     {"deepinfra"},
+	"cerebras":      {"cerebras"},
+}
 
 // roundPrice converts a Portkey cents-per-token price to USD per 1 million
 // tokens, rounded to 4 significant figures to eliminate float artifacts
@@ -101,12 +183,26 @@ func (api *API) getChatProviderModels(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Load context window data (vendored or user-supplied override).
+	ctxPath := strings.TrimSpace(api.DeploymentValues.AI.Chat.LiteLLMContextPath.Value())
+	ctxMap, err := contextWindowLookup(ctxPath)
+	if err != nil {
+		// Non-fatal: log and continue without context data.
+		api.Logger.Warn(ctx, "failed to load litellm context window data", slog.Error(err))
+		ctxMap = map[string]int64{}
+	}
+
+	litellmProviders := portkeyToLiteLLMProviders[provider]
+
 	models := make([]codersdk.PortkeyModelEntry, 0, len(raw))
 	for modelID, entry := range raw {
 		if modelID == "default" {
 			continue
 		}
-		m := codersdk.PortkeyModelEntry{ModelID: modelID}
+		m := codersdk.PortkeyModelEntry{
+			ModelID:        modelID,
+			MaxInputTokens: lookupContextWindow(ctxMap, modelID, litellmProviders),
+		}
 		if payg := entry.PricingConfig.PayAsYouGo; payg != nil {
 			if payg.RequestToken != nil && payg.RequestToken.Price > 0 {
 				m.InputPer1M = ptr.Ref(roundPrice(payg.RequestToken.Price))

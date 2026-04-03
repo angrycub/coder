@@ -3622,6 +3622,15 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
 		{
+			Name:        "Chat: LiteLLM Context Window Data Path",
+			Description: "Path to a local litellm model_prices_and_context_window.json file. When set, context window data is read from this file instead of the vendored copy. Useful for air-gapped deployments.",
+			Flag:        "chat-litellm-context-path",
+			Env:         "CODER_CHAT_LITELLM_CONTEXT_PATH",
+			Value:       &c.AI.Chat.LiteLLMContextPath,
+			Group:       &deploymentGroupChat,
+			YAML:        "litellmContextPath",
+		},
+		{
 			Name:        "Chat: Enable Portkey Pricing Lookup",
 			Description: "Allow admins to fetch model pricing from the Portkey API (api.portkey.ai) via a server-side proxy.",
 			Flag:        "chat-portkey-pricing-enabled",
@@ -4097,8 +4106,9 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize      serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	PortkeyPricingEnabled serpent.Bool  `json:"portkey_pricing_enabled,omitempty" typescript:",notnull"`
+	AcquireBatchSize      serpent.Int64  `json:"acquire_batch_size" typescript:",notnull"`
+	PortkeyPricingEnabled serpent.Bool   `json:"portkey_pricing_enabled,omitempty" typescript:",notnull"`
+	LiteLLMContextPath    serpent.String `json:"litellm_context_path,omitempty" typescript:",notnull"`
 }
 
 type AIConfig struct {

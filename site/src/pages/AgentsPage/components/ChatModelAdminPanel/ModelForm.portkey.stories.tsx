@@ -15,34 +15,40 @@ const mockOpenAIModels: TypesGen.PortkeyModelEntry[] = [
 		input_per_1m: 2.5,
 		output_per_1m: 10,
 		cache_read_per_1m: 1.25,
+		max_input_tokens: 128000,
 	},
 	{
 		model_id: "gpt-4o-mini",
 		input_per_1m: 0.15,
 		output_per_1m: 0.6,
 		cache_read_per_1m: 0.075,
+		max_input_tokens: 128000,
 	},
 	{
 		model_id: "gpt-4-turbo",
 		input_per_1m: 10,
 		output_per_1m: 30,
+		max_input_tokens: 128000,
 	},
 	{
 		model_id: "gpt-3.5-turbo",
 		input_per_1m: 0.5,
 		output_per_1m: 1.5,
+		max_input_tokens: 16385,
 	},
 	{
 		model_id: "o1",
 		input_per_1m: 15,
 		output_per_1m: 60,
 		cache_read_per_1m: 7.5,
+		max_input_tokens: 200000,
 	},
 	{
 		model_id: "o3-mini",
 		input_per_1m: 1.1,
 		output_per_1m: 4.4,
 		cache_read_per_1m: 0.55,
+		max_input_tokens: 200000,
 	},
 ];
 
@@ -53,6 +59,7 @@ const mockAnthropicModels: TypesGen.PortkeyModelEntry[] = [
 		output_per_1m: 15,
 		cache_read_per_1m: 0.3,
 		cache_write_per_1m: 3.75,
+		max_input_tokens: 200000,
 	},
 	{
 		model_id: "claude-3-5-haiku-20241022",
@@ -60,6 +67,7 @@ const mockAnthropicModels: TypesGen.PortkeyModelEntry[] = [
 		output_per_1m: 4,
 		cache_read_per_1m: 0.08,
 		cache_write_per_1m: 1,
+		max_input_tokens: 200000,
 	},
 	{
 		model_id: "claude-3-opus-20240229",
@@ -67,6 +75,7 @@ const mockAnthropicModels: TypesGen.PortkeyModelEntry[] = [
 		output_per_1m: 75,
 		cache_read_per_1m: 1.5,
 		cache_write_per_1m: 18.75,
+		max_input_tokens: 200000,
 	},
 ];
 
@@ -295,6 +304,33 @@ export const SelectModelAutoFillsPricing: Story = {
 		).toBeInTheDocument();
 		await expect(
 			await body.findByDisplayValue("10"),
+		).toBeInTheDocument();
+	},
+};
+
+/**
+ * When a model has context window data, selecting it fills the Context
+ * Limit field automatically.
+ */
+export const SelectModelFillsContextLimit: Story = {
+	beforeEach: () => {
+		injectPortkeyMeta(true);
+		spyOn(API.experimental, "getChatProviderModels").mockResolvedValue({
+			models: mockOpenAIModels,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		const combobox = await body.findByRole("combobox");
+		await userEvent.click(combobox);
+		const option = await body.findByText("gpt-4o");
+		await userEvent.click(option);
+
+		// Context Limit field should be pre-filled with gpt-4o's 128000.
+		await expect(
+			await body.findByDisplayValue("128000"),
 		).toBeInTheDocument();
 	},
 };

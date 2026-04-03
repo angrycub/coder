@@ -8830,6 +8830,7 @@ export interface PortkeyModelEntry {
 	readonly output_per_1m?: number;
 	readonly cache_read_per_1m?: number;
 	readonly cache_write_per_1m?: number;
+	readonly max_input_tokens?: number;
 }
 
 // From codersdk/chats.go

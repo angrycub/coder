@@ -257,6 +257,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 				String(entry.cache_write_per_1m),
 			);
 		}
+		if (entry.max_input_tokens !== undefined) {
+			void form.setFieldValue(
+				"contextLimit",
+				String(entry.max_input_tokens),
+			);
+		}
 		if (!showPricing) setShowPricing(true);
 	};
 
