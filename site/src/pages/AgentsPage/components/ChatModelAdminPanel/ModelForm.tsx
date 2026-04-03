@@ -5,6 +5,7 @@ import {
 	ChevronRightIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -112,6 +113,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [showPricing, setShowPricing] = useState(false);
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+	const { metadata } = useEmbeddedMetadata();
+	const portkeyPricingEnabled = metadata["portkey-pricing-enabled"].value === true;
 
 	const canManageModels = Boolean(
 		selectedProviderState?.providerConfig &&
@@ -448,22 +452,21 @@ export const ModelForm: FC<ModelFormProps> = ({
 					/>
 
 					<div className="space-y-5">
-						{/* Pricing - toggle */}
+					{/* Pricing - toggle */}
 						<div>
-							<button
-								type="button"
-								onClick={() => setShowPricing((v) => !v)}
-								className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
-							>
-								{showPricing ? (
-									<ChevronDownIcon className="h-4 w-4" />
-								) : (
-									<ChevronRightIcon className="h-4 w-4" />
-								)}
-								Pricing
-							</button>
-							{showPricing && (
-								<div className="mt-4 space-y-3">
+								<button
+									type="button"
+									onClick={() => setShowPricing((v) => !v)}
+									className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
+								>
+									{showPricing ? (
+										<ChevronDownIcon className="h-4 w-4" />
+									) : (
+										<ChevronRightIcon className="h-4 w-4" />
+									)}
+									Pricing
+								</button>
+								{showPricing && (								<div className="mt-4 space-y-3">
 									<div>
 										<p className="m-0 text-xs text-content-secondary">
 											Optional USD pricing metadata per 1M tokens. Leave any
@@ -482,65 +485,64 @@ export const ModelForm: FC<ModelFormProps> = ({
 								</div>
 							)}
 						</div>
-
-						{/* Advanced - toggle */}
-						<div>
-							<button
-								type="button"
-								onClick={() => setShowAdvanced((v) => !v)}
-								className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
-							>
-								{showAdvanced ? (
-									<ChevronDownIcon className="h-4 w-4" />
-								) : (
-									<ChevronRightIcon className="h-4 w-4" />
-								)}
-								Advanced
-							</button>
-							{showAdvanced && (
-								<div className="mt-4 space-y-5">
-									<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-										<GeneralModelConfigFields
-											provider={selectedProviderState.provider}
-											form={form}
-											fieldErrors={modelConfigFormBuildResult.fieldErrors}
-											disabled={isSaving}
-										/>
-									</div>
-									<div className="flex flex-col gap-1.5">
-										<Label
-											htmlFor={compressionThresholdField.id}
-											className="text-sm font-medium text-content-primary"
-										>
-											Compression Threshold
-										</Label>
-										<p className="m-0 text-xs text-content-secondary">
-											Percentage at which context is compressed.
-										</p>
-										<Input
-											id={compressionThresholdField.id}
-											name={compressionThresholdField.name}
-											className={cn(
-												"h-9 text-[13px] placeholder:text-content-disabled",
-												compressionThresholdField.error &&
-													"border-content-destructive",
-											)}
-											placeholder="70"
-											value={compressionThresholdField.value}
-											onChange={compressionThresholdField.onChange}
-											onBlur={compressionThresholdField.onBlur}
-											disabled={isSaving}
-											aria-invalid={compressionThresholdField.error}
-										/>
-										{compressionThresholdField.error && (
-											<p className="m-0 text-xs text-content-destructive">
-												{compressionThresholdField.helperText}
+							{/* Advanced - toggle */}
+							<div>
+								<button
+									type="button"
+									onClick={() => setShowAdvanced((v) => !v)}
+									className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
+								>
+									{showAdvanced ? (
+										<ChevronDownIcon className="h-4 w-4" />
+									) : (
+										<ChevronRightIcon className="h-4 w-4" />
+									)}
+									Advanced
+								</button>
+								{showAdvanced && (
+									<div className="mt-4 space-y-5">
+										<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+											<GeneralModelConfigFields
+												provider={selectedProviderState.provider}
+												form={form}
+												fieldErrors={modelConfigFormBuildResult.fieldErrors}
+												disabled={isSaving}
+											/>
+										</div>
+										<div className="flex flex-col gap-1.5">
+											<Label
+												htmlFor={compressionThresholdField.id}
+												className="text-sm font-medium text-content-primary"
+											>
+												Compression Threshold
+											</Label>
+											<p className="m-0 text-xs text-content-secondary">
+												Percentage at which context is compressed.
 											</p>
-										)}
+											<Input
+												id={compressionThresholdField.id}
+												name={compressionThresholdField.name}
+												className={cn(
+													"h-9 text-[13px] placeholder:text-content-disabled",
+													compressionThresholdField.error &&
+														"border-content-destructive",
+												)}
+												placeholder="70"
+												value={compressionThresholdField.value}
+												onChange={compressionThresholdField.onChange}
+												onBlur={compressionThresholdField.onBlur}
+												disabled={isSaving}
+												aria-invalid={compressionThresholdField.error}
+											/>
+											{compressionThresholdField.error && (
+												<p className="m-0 text-xs text-content-destructive">
+													{compressionThresholdField.helperText}
+												</p>
+											)}
+										</div>
 									</div>
-								</div>
-							)}
-						</div>
+								)}
+							</div>
 					</div>
 				</div>
 				{/* Footer - pushed to bottom */}

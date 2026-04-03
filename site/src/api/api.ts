@@ -3401,6 +3401,7 @@ class ExperimentalApiMethods {
 		);
 	};
 
+
 	getUserChatProviderConfigs = async (): Promise<
 		TypesGen.UserChatProviderConfig[]
 	> => {

@@ -32,9 +32,9 @@ type AvailableMetadata = Readonly<{
 	regions: readonly Region[];
 	"build-info": BuildInfoResponse;
 	"tasks-tab-visible": boolean;
-	"agents-tab-visible": boolean;
-	permissions: Permissions;
-	organizations: Organization[];
+		"agents-tab-visible": boolean;
+		"portkey-pricing-enabled": boolean;
+		permissions: Permissions;	organizations: Organization[];
 }>;
 
 export type MetadataKey = keyof AvailableMetadata;
@@ -97,9 +97,9 @@ export class MetadataManager implements MetadataManagerApi {
 			"build-info": this.registerValue<BuildInfoResponse>("build-info"),
 			regions: this.registerRegionValue(),
 			"tasks-tab-visible": this.registerValue<boolean>("tasks-tab-visible"),
-			"agents-tab-visible": this.registerValue<boolean>("agents-tab-visible"),
-			permissions: this.registerValue<Permissions>("permissions"),
-			organizations: this.registerValue<Organization[]>("organizations"),
+				"agents-tab-visible": this.registerValue<boolean>("agents-tab-visible"),
+				"portkey-pricing-enabled": this.registerValue<boolean>("portkey-pricing-enabled"),
+				permissions: this.registerValue<Permissions>("permissions"),			organizations: this.registerValue<Organization[]>("organizations"),
 		};
 	}
 
