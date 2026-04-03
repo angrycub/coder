@@ -3621,6 +3621,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "acquireBatchSize",
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
+		{
+			Name:        "Chat: Enable Portkey Pricing Lookup",
+			Description: "Allow admins to fetch model pricing from the Portkey API (api.portkey.ai) via a server-side proxy.",
+			Flag:        "chat-portkey-pricing-enabled",
+			Env:         "CODER_CHAT_PORTKEY_PRICING_ENABLED",
+			Default:     "false",
+			Value:       &c.AI.Chat.PortkeyPricingEnabled,
+			Group:       &deploymentGroupChat,
+			YAML:        "portkeyPricingEnabled",
+		},
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
@@ -4087,7 +4097,8 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	AcquireBatchSize      serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	PortkeyPricingEnabled serpent.Bool  `json:"portkey_pricing_enabled,omitempty" typescript:",notnull"`
 }
 
 type AIConfig struct {
