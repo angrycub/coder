@@ -83,6 +83,7 @@ type Options struct {
 	Telemetry         telemetry.Reporter
 	Logger            slog.Logger
 	HideAITasks       bool
+	PortkeyPricingEnabled bool
 }
 
 func New(opts *Options) (*Handler, error) {
@@ -268,6 +269,7 @@ type htmlState struct {
 
 	TasksTabVisible  string
 	AgentsTabVisible string
+	PortkeyPricingEnabled string
 	Permissions      string
 	Organizations    string
 }
@@ -533,6 +535,12 @@ func (h *Handler) populateHTMLState(
 		data, err := json.Marshal(agentsTabVisible)
 		if err == nil {
 			state.AgentsTabVisible = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		data, err := json.Marshal(h.opts.PortkeyPricingEnabled)
+		if err == nil {
+			state.PortkeyPricingEnabled = html.EscapeString(string(data))
 		}
 	})
 	wg.Go(func() {
