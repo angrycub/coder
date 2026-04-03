@@ -10,6 +10,16 @@ import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxEmpty,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "#/components/Combobox/Combobox";
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -49,6 +59,7 @@ import {
 	parseThresholdInteger,
 } from "./modelConfigFormLogic";
 import { ProviderIcon } from "./ProviderIcon";
+import { usePortkeyProviderModels } from "./usePortkeyProviderModels";
 
 // ── Validation ──────────────────────────────────────────────────
 
@@ -116,6 +127,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const { metadata } = useEmbeddedMetadata();
 	const portkeyPricingEnabled = metadata["portkey-pricing-enabled"].value === true;
+	const { models: portkeyModels, isLoading: isLoadingModels } =
+		usePortkeyProviderModels(
+			portkeyPricingEnabled ? (selectedProviderState?.provider ?? null) : null,
+		);
 
 	const canManageModels = Boolean(
 		selectedProviderState?.providerConfig &&
@@ -214,6 +229,36 @@ export const ModelForm: FC<ModelFormProps> = ({
 		selectedProviderState?.provider,
 		form.values.config,
 	);
+
+	const applyPortkeyPricing = (modelId: string) => {
+		const entry = portkeyModels.find((m) => m.model_id === modelId);
+		if (!entry) return;
+		if (entry.input_per_1m !== undefined) {
+			void form.setFieldValue(
+				"config.cost.inputPricePerMillionTokens",
+				String(entry.input_per_1m),
+			);
+		}
+		if (entry.output_per_1m !== undefined) {
+			void form.setFieldValue(
+				"config.cost.outputPricePerMillionTokens",
+				String(entry.output_per_1m),
+			);
+		}
+		if (entry.cache_read_per_1m !== undefined) {
+			void form.setFieldValue(
+				"config.cost.cacheReadPricePerMillionTokens",
+				String(entry.cache_read_per_1m),
+			);
+		}
+		if (entry.cache_write_per_1m !== undefined) {
+			void form.setFieldValue(
+				"config.cost.cacheWritePricePerMillionTokens",
+				String(entry.cache_write_per_1m),
+			);
+		}
+		if (!showPricing) setShowPricing(true);
+	};
 
 	const hasFieldErrors =
 		Object.keys(modelConfigFormBuildResult.fieldErrors).length > 0;
@@ -369,46 +414,92 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<div className="space-y-5">
 					{/* Model ID + Context Limit */}
 					<div className="grid items-start gap-5 sm:grid-cols-2">
-						<div className="grid gap-1.5">
-							<Label
-								htmlFor={modelField.id}
-								className="text-sm font-medium text-content-primary"
-							>
-								Model Identifier{" "}
-								<span className="text-xs font-bold text-content-destructive">
-									*
-								</span>
-							</Label>
-							<p className="m-0 text-xs text-content-secondary">
-								The model identifier sent to the provider API.
-							</p>
-							<Input
-								id={modelField.id}
-								name={modelField.name}
-								className={cn(
-									"h-9 text-[13px] placeholder:text-content-disabled",
-									modelField.error && "border-content-destructive",
-								)}
-								placeholder="e.g. gpt-5, claude-sonnet-4-5"
-								value={modelField.value}
-								onChange={modelField.onChange}
-								onBlur={modelField.onBlur}
-								disabled={isSaving}
-								aria-invalid={modelField.error}
-								aria-describedby={
-									modelField.error ? `${modelField.id}-error` : undefined
-								}
-							/>
-							{modelField.error && (
-								<p
-									id={`${modelField.id}-error`}
-									className="m-0 text-xs text-content-destructive"
+							<div className="grid gap-1.5">
+								<Label
+									htmlFor={modelField.id}
+									className="text-sm font-medium text-content-primary"
 								>
-									{modelField.helperText}
+									Model Identifier{" "}
+									<span className="text-xs font-bold text-content-destructive">
+										*
+									</span>
+								</Label>
+								<p className="m-0 text-xs text-content-secondary">
+									The model identifier sent to the provider API.
 								</p>
-							)}
-						</div>
-						<div className="grid gap-1.5">
+								{portkeyModels.length > 0 ? (
+									<Combobox
+										value={form.values.model}
+										onValueChange={(val) => {
+											const v = val ?? "";
+											void form.setFieldValue("model", v);
+											applyPortkeyPricing(v);
+										}}
+									>
+										<ComboboxTrigger asChild>
+											<ComboboxButton
+												className={cn(
+													"h-9 w-full text-[13px]",
+													modelField.error && "border-content-destructive",
+												)}
+												selectedOption={
+													form.values.model
+														? { value: form.values.model, label: form.values.model }
+														: undefined
+												}
+												placeholder="Select or type a model ID"
+												disabled={isSaving}
+											/>
+										</ComboboxTrigger>
+										<ComboboxContent className="w-[--radix-popover-trigger-width]">
+											<ComboboxInput placeholder="Search models…" />
+											<ComboboxList>
+												<ComboboxEmpty>No models found.</ComboboxEmpty>
+												{portkeyModels.map((m) => (
+													<ComboboxItem
+														key={m.model_id}
+														value={m.model_id}
+													>
+														<span className="flex-1 truncate">{m.model_id}</span>
+														{m.input_per_1m !== undefined && (
+															<span className="ml-2 shrink-0 text-xs text-content-secondary">
+																${m.input_per_1m}/{m.output_per_1m} /1M
+															</span>
+														)}
+													</ComboboxItem>
+												))}
+											</ComboboxList>
+										</ComboboxContent>
+									</Combobox>
+								) : (
+									<Input
+										id={modelField.id}
+										name={modelField.name}
+										className={cn(
+											"h-9 text-[13px] placeholder:text-content-disabled",
+											modelField.error && "border-content-destructive",
+										)}
+										placeholder={isLoadingModels ? "Loading models…" : "e.g. gpt-5, claude-sonnet-4-5"}
+										value={modelField.value}
+										onChange={modelField.onChange}
+										onBlur={modelField.onBlur}
+										disabled={isSaving}
+										aria-invalid={modelField.error}
+										aria-describedby={
+											modelField.error ? `${modelField.id}-error` : undefined
+										}
+									/>
+								)}
+								{modelField.error && (
+									<p
+										id={`${modelField.id}-error`}
+										className="m-0 text-xs text-content-destructive"
+									>
+										{modelField.helperText}
+									</p>
+								)}
+							</div>
+							<div className="grid gap-1.5">
 							<Label
 								htmlFor={contextLimitField.id}
 								className="text-sm font-medium text-content-primary"
@@ -466,7 +557,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 									)}
 									Pricing
 								</button>
-								{showPricing && (								<div className="mt-4 space-y-3">
+								{showPricing && (
+									<div className="mt-4 space-y-3">
 									<div>
 										<p className="m-0 text-xs text-content-secondary">
 											Optional USD pricing metadata per 1M tokens. Leave any
