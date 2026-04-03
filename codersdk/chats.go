@@ -2266,3 +2266,18 @@ type PRInsightsPullRequest struct {
 	CostMicros       int64     `json:"cost_micros"`
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 }
+
+// PortkeyModelEntry is a single model from the Portkey provider catalog.
+// Prices are in USD per 1 million tokens, rounded to 4 significant figures.
+type PortkeyModelEntry struct {
+	ModelID         string   `json:"model_id"`
+	InputPer1M      *float64 `json:"input_per_1m,omitempty"`
+	OutputPer1M     *float64 `json:"output_per_1m,omitempty"`
+	CacheReadPer1M  *float64 `json:"cache_read_per_1m,omitempty"`
+	CacheWritePer1M *float64 `json:"cache_write_per_1m,omitempty"`
+}
+
+// PortkeyProviderModelsResponse is the response for the provider model catalog endpoint.
+type PortkeyProviderModelsResponse struct {
+	Models []PortkeyModelEntry `json:"models"`
+}
