@@ -3402,6 +3402,14 @@ class ExperimentalApiMethods {
 	};
 
 
+		getChatProviderModels = async (
+			provider: string,
+		): Promise<TypesGen.PortkeyProviderModelsResponse> => {
+			const response = await this.axios.get(
+				`/api/experimental/chats/model-pricing/${encodeURIComponent(provider)}/models`,
+			);
+			return response.data;
+		};
 	getUserChatProviderConfigs = async (): Promise<
 		TypesGen.UserChatProviderConfig[]
 	> => {

@@ -8803,3 +8803,36 @@ export interface WorkspacesResponse {
 	readonly workspaces: readonly Workspace[];
 	readonly count: number;
 }
+
+// From codersdk/chats.go
+export interface PortkeyPricingTokenPrice {
+	readonly price: number;
+}
+
+// From codersdk/chats.go
+export interface PortkeyPricingPayAsYouGo {
+	readonly request_token?: PortkeyPricingTokenPrice;
+	readonly response_token?: PortkeyPricingTokenPrice;
+	readonly cache_read_input_token?: PortkeyPricingTokenPrice;
+	readonly cache_write_input_token?: PortkeyPricingTokenPrice;
+}
+
+// From codersdk/chats.go
+export interface PortkeyPricingResponse {
+	readonly pay_as_you_go?: PortkeyPricingPayAsYouGo;
+	readonly currency?: string;
+}
+
+// From codersdk/chats.go
+export interface PortkeyModelEntry {
+	readonly model_id: string;
+	readonly input_per_1m?: number;
+	readonly output_per_1m?: number;
+	readonly cache_read_per_1m?: number;
+	readonly cache_write_per_1m?: number;
+}
+
+// From codersdk/chats.go
+export interface PortkeyProviderModelsResponse {
+	readonly models: readonly PortkeyModelEntry[];
+}
