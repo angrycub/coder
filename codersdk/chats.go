@@ -2266,3 +2266,23 @@ type PRInsightsPullRequest struct {
 	CostMicros       int64     `json:"cost_micros"`
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 }
+
+// PortkeyPricingTokenPrice holds the price for a single token class.
+type PortkeyPricingTokenPrice struct {
+	Price float64 `json:"price"`
+}
+
+// PortkeyPricingPayAsYouGo holds the pay-as-you-go pricing fields returned
+// by the Portkey pricing API. Prices are in USD cents per token.
+type PortkeyPricingPayAsYouGo struct {
+	RequestToken          *PortkeyPricingTokenPrice `json:"request_token,omitempty"`
+	ResponseToken         *PortkeyPricingTokenPrice `json:"response_token,omitempty"`
+	CacheReadInputToken   *PortkeyPricingTokenPrice `json:"cache_read_input_token,omitempty"`
+	CacheWriteInputToken  *PortkeyPricingTokenPrice `json:"cache_write_input_token,omitempty"`
+}
+
+// PortkeyPricingResponse is the response from the Portkey model pricing API.
+type PortkeyPricingResponse struct {
+	PayAsYouGo *PortkeyPricingPayAsYouGo `json:"pay_as_you_go,omitempty"`
+	Currency   string                    `json:"currency,omitempty"`
+}

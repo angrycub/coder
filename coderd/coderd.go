@@ -1208,6 +1208,9 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
+			r.Route("/model-pricing", func(r chi.Router) {
+				r.Get("/{provider}/{model}", api.getChatModelPricing)
+			})
 			r.Route("/usage-limits", func(r chi.Router) {
 				r.Get("/", api.getChatUsageLimitConfig)
 				r.Put("/", api.updateChatUsageLimitConfig)
