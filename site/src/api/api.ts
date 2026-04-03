@@ -3401,6 +3401,16 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getChatModelPricing = async (
+		provider: string,
+		model: string,
+	): Promise<unknown> => {
+		const response = await this.axios.get(
+			`/api/experimental/chats/model-pricing/${encodeURIComponent(provider)}/${encodeURIComponent(model)}`,
+		);
+		return response.data;
+	};
+
 	getUserChatProviderConfigs = async (): Promise<
 		TypesGen.UserChatProviderConfig[]
 	> => {

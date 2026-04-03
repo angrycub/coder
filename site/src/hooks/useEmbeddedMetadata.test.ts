@@ -47,6 +47,7 @@ const mockDataForTags = {
 	regions: MockRegions,
 	"tasks-tab-visible": MockTasksTabVisible,
 	"agents-tab-visible": MockAgentsTabVisible,
+	"portkey-pricing-enabled": false,
 	permissions: MockPermissions,
 	organizations: [MockOrganization],
 } as const satisfies Record<MetadataKey, MetadataValue>;
@@ -85,6 +86,10 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		value: undefined,
 	},
 	"agents-tab-visible": {
+		available: false,
+		value: undefined,
+	},
+	"portkey-pricing-enabled": {
 		available: false,
 		value: undefined,
 	},
@@ -134,6 +139,10 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 	"agents-tab-visible": {
 		available: true,
 		value: MockAgentsTabVisible,
+	},
+	"portkey-pricing-enabled": {
+		available: true,
+		value: false,
 	},
 	permissions: {
 		available: true,

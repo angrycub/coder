@@ -1221,6 +1221,7 @@ export const ChatCompactionThresholdKeyPrefix =
 // From codersdk/deployment.go
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
+	readonly portkey_pricing_enabled: boolean;
 }
 
 // From codersdk/chats.go
