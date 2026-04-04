@@ -224,3 +224,38 @@ export const BottomMessage: Story = {
 		},
 	},
 };
+
+export const GhosttyReady: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		webSocket: [
+			{
+				event: "message",
+				data: "\u001b[H\u001b[2J\u001b[1m\u001b[32m➜  \u001b[36mcoder\u001b[C\u001b[34mgit:(\u001b[31mmain\u001b[34m) \u001b[33m✗",
+			},
+		],
+		queries: [
+			...(meta.parameters.queries as { key: unknown[] }[]).filter(
+				(q) => !(q.key[0] === "experiments"),
+			),
+			{ key: ["experiments"], data: ["ghostty-terminal"] },
+			createWorkspaceWithAgent("ready"),
+		],
+		chromatic: { disableSnapshot: true },
+	},
+};
+
+export const GhosttyStartError: Story = {
+	parameters: {
+		...meta.parameters,
+		queries: [
+			...(meta.parameters.queries as { key: unknown[] }[]).filter(
+				(q) => !(q.key[0] === "experiments"),
+			),
+			{ key: ["experiments"], data: ["ghostty-terminal"] },
+			createWorkspaceWithAgent("start_error"),
+		],
+		chromatic: { disableSnapshot: true },
+	},
+};

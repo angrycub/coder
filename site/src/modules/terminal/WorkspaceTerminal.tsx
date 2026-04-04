@@ -1,516 +1,509 @@
-import "@xterm/xterm/css/xterm.css";
-import { CanvasAddon } from "@xterm/addon-canvas";
-import { FitAddon } from "@xterm/addon-fit";
-import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { WebLinksAddon } from "@xterm/addon-web-links";
-import { WebglAddon } from "@xterm/addon-webgl";
-import { Terminal } from "@xterm/xterm";
 import {
-	type Ref,
-	useCallback,
-	useEffect,
-	useId,
-	useImperativeHandle,
-	useRef,
-	useState,
+  type Ref,
+  useCallback,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
 } from "react";
 import {
-	ExponentialBackoff,
-	type Websocket,
-	WebsocketBuilder,
-	WebsocketEvent,
+  ExponentialBackoff,
+  type Websocket,
+  WebsocketBuilder,
+  WebsocketEvent,
 } from "websocket-ts";
 import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useClipboard } from "#/hooks/useClipboard";
 import { cn } from "#/utils/cn";
 import { terminalWebsocketUrl } from "#/utils/terminal";
+import type { ITerminalAdapter } from "./TerminalAdapter";
 import type { ConnectionStatus } from "./types";
+import { useTerminalEngine } from "./useTerminalAdapter";
 
 export type WorkspaceTerminalHandle = {
-	refit: () => void;
+  refit: () => void;
 };
 
 type WorkspaceTerminalProps = {
-	ref?: Ref<WorkspaceTerminalHandle>;
-	agentId: string | undefined;
-	operatingSystem?: string;
-	className?: string;
-	autoFocus?: boolean;
-	isVisible?: boolean;
-	initialCommand?: string;
-	containerName?: string;
-	containerUser?: string;
-	onStatusChange?: (status: ConnectionStatus) => void;
-	onError?: (error: Error) => void;
-	reconnectionToken: string;
-	baseUrl?: string;
-	terminalFontFamily?: string;
-	renderer?: string;
-	backgroundColor?: string;
-	onOpenLink?: (uri: string) => void;
-	loading?: boolean;
-	errorMessage?: string;
-	testId?: string;
+  ref?: Ref<WorkspaceTerminalHandle>;
+  agentId: string | undefined;
+  operatingSystem?: string;
+  className?: string;
+  autoFocus?: boolean;
+  isVisible?: boolean;
+  initialCommand?: string;
+  containerName?: string;
+  containerUser?: string;
+  onStatusChange?: (status: ConnectionStatus) => void;
+  onError?: (error: Error) => void;
+  reconnectionToken: string;
+  baseUrl?: string;
+  terminalFontFamily?: string;
+  renderer?: string;
+  backgroundColor?: string;
+  onOpenLink?: (uri: string) => void;
+  loading?: boolean;
+  errorMessage?: string;
+  testId?: string;
 };
 
 const DEFAULT_TERMINAL_FONT_FAMILY = "monospace";
 const ESCAPED_CARRIAGE_RETURN = "\x1b\r";
 
 const encodeTerminalPayload = (payload: Record<string, number | string>) => {
-	return new TextEncoder().encode(JSON.stringify(payload));
+  return new TextEncoder().encode(JSON.stringify(payload));
 };
 
 export const WorkspaceTerminal = ({
-	ref,
-	agentId,
-	operatingSystem,
-	className,
-	autoFocus = true,
-	isVisible = true,
-	initialCommand,
-	containerName,
-	containerUser,
-	onStatusChange,
-	onError,
-	reconnectionToken,
-	baseUrl,
-	terminalFontFamily = DEFAULT_TERMINAL_FONT_FAMILY,
-	renderer,
-	backgroundColor,
-	onOpenLink,
-	loading = false,
-	errorMessage,
-	testId,
+  ref,
+  agentId,
+  operatingSystem,
+  className,
+  autoFocus = true,
+  isVisible = true,
+  initialCommand,
+  containerName,
+  containerUser,
+  onStatusChange,
+  onError,
+  reconnectionToken,
+  baseUrl,
+  terminalFontFamily = DEFAULT_TERMINAL_FONT_FAMILY,
+  renderer,
+  backgroundColor,
+  onOpenLink,
+  loading = false,
+  errorMessage,
+  testId,
 }: WorkspaceTerminalProps) => {
-	const scopeId = useId();
-	const terminalWrapperRef = useRef<HTMLDivElement>(null);
-	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
-	const websocketRef = useRef<Websocket | undefined>(undefined);
-	const handleOpenLink = useEffectEvent((uri: string) => {
-		onOpenLink ? onOpenLink(uri) : window.open(uri, "_blank", "noopener");
-	});
-	const handleStatusChange = useEffectEvent((status: ConnectionStatus) => {
-		onStatusChange?.(status);
-	});
-	const [terminal, setTerminal] = useState<Terminal>();
-	const { copyToClipboard } = useClipboard();
+  const scopeId = useId();
+  const terminalWrapperRef = useRef<HTMLDivElement>(null);
+  const websocketRef = useRef<Websocket | undefined>(undefined);
+  const handleOpenLink = useEffectEvent((uri: string) => {
+    onOpenLink ? onOpenLink(uri) : window.open(uri, "_blank", "noopener");
+  });
+  const handleStatusChange = useEffectEvent((status: ConnectionStatus) => {
+    onStatusChange?.(status);
+  });
+  const [adapter, setAdapter] = useState<ITerminalAdapter>();
+  const { copyToClipboard } = useClipboard();
+  const terminalEngine = useTerminalEngine();
 
-	const [hasBeenVisible, setHasBeenVisible] = useState(false);
-	if (isVisible && !hasBeenVisible) {
-		setHasBeenVisible(true);
-	}
+  const [hasBeenVisible, setHasBeenVisible] = useState(false);
+  if (isVisible && !hasBeenVisible) {
+    setHasBeenVisible(true);
+  }
 
-	const reportTerminalError = useEffectEvent((error: Error) => {
-		console.error(error);
-		onError?.(error);
-	});
+  const reportTerminalError = useEffectEvent((error: Error) => {
+    console.error(error);
+    onError?.(error);
+  });
 
-	const getTerminalDimensions = useCallback(
-		(terminal: Terminal): { height: number; width: number } | null => {
-			if (terminal.rows <= 0 || terminal.cols <= 0) {
-				reportTerminalError(
-					new Error(
-						`Terminal has non-positive dimensions: ${terminal.rows}x${terminal.cols}`,
-					),
-				);
-				return null;
-			}
+  const getTerminalDimensions = useCallback(
+    (adapter: ITerminalAdapter): { height: number; width: number } | null => {
+      const { cols, rows } = adapter.getDimensions();
+      if (rows <= 0 || cols <= 0) {
+        reportTerminalError(
+          new Error(
+            `Terminal has non-positive dimensions: ${rows}x${cols}`,
+          ),
+        );
+        return null;
+      }
+      return { height: rows, width: cols };
+    },
+    [reportTerminalError],
+  );
 
-			return {
-				height: terminal.rows,
-				width: terminal.cols,
-			};
-		},
-		[reportTerminalError],
-	);
+  const refit = useCallback(() => {
+    if (!adapter) {
+      return;
+    }
+    adapter.fit();
+  }, [adapter]);
 
-	const refit = useCallback(() => {
-		const fitAddon = fitAddonRef.current;
-		if (!fitAddon) {
-			return;
-		}
+  useImperativeHandle(
+    ref,
+    () => ({
+      refit,
+    }),
+    [refit],
+  );
 
-		// We have to fit twice here. It's unknown why, but the
-		// first fit will overflow slightly in some scenarios.
-		// Applying a second fit resolves this.
-		try {
-			fitAddon.fit();
-			fitAddon.fit();
-		} catch (error) {
-			// biome-ignore lint/suspicious/noConsole: Expected transient fit failure while xterm initializes.
-			console.debug("Terminal fit skipped: renderer not ready", error);
-		}
-	}, []);
+  // ---------------------------------------------------------------------------
+  // Effect: initialise the terminal adapter when the component first becomes
+  // visible. Tears down and recreates if the engine selection changes.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!hasBeenVisible) {
+      return;
+    }
 
-	useImperativeHandle(
-		ref,
-		() => ({
-			refit,
-		}),
-		[refit],
-	);
+    const mountNode = terminalWrapperRef.current;
+    if (!mountNode) {
+      reportTerminalError(new Error("Terminal mount container is unavailable"));
+      return;
+    }
 
-	useEffect(() => {
-		if (!hasBeenVisible) {
-			return;
-		}
+    let disposed = false;
+    let nextAdapter: ITerminalAdapter | null = null;
 
-		const mountNode = terminalWrapperRef.current;
-		if (!mountNode) {
-			reportTerminalError(new Error("Terminal mount container is unavailable"));
-			return;
-		}
+    const setupAdapter = async () => {
+      if (terminalEngine === "ghostty") {
+        // Dynamic imports keep the xterm bundle out of the ghostty path
+        const { GhosttyAdapter } = await import("./adapters/GhosttyAdapter");
+        const ghosttyAdapter = new GhosttyAdapter({
+          fontFamily: terminalFontFamily,
+          fontSize: 16,
+          backgroundColor,
+          onOpenLink: handleOpenLink,
+        });
+        await ghosttyAdapter.initialize();
+        if (disposed) {
+          ghosttyAdapter.dispose();
+          return;
+        }
+        nextAdapter = ghosttyAdapter;
+      } else {
+        const { XtermAdapter } = await import("./adapters/XtermAdapter");
+        nextAdapter = new XtermAdapter({
+          fontFamily: terminalFontFamily,
+          fontSize: 16,
+          backgroundColor,
+          renderer,
+          onOpenLink: handleOpenLink,
+        });
+      }
 
-		const nextTerminal = new Terminal({
-			allowProposedApi: true,
-			allowTransparency: true,
-			disableStdin: false,
-			fontFamily: terminalFontFamily,
-			fontSize: 16,
-			...(backgroundColor ? { theme: { background: backgroundColor } } : {}),
-		});
+      const isMac = navigator.platform.match("Mac");
+      const copySelection = () => {
+        const selection = nextAdapter!.getSelection();
+        if (selection) {
+          copyToClipboard(selection);
+        }
+      };
 
-		if (renderer === "webgl") {
-			nextTerminal.loadAddon(new WebglAddon());
-		} else if (renderer === "canvas") {
-			nextTerminal.loadAddon(new CanvasAddon());
-		}
+      nextAdapter.attachCustomKeyEventHandler((event) => {
+        // Shift+Enter → send escaped carriage return
+        if (event.shiftKey && event.key === "Enter") {
+          if (event.type === "keydown") {
+            websocketRef.current?.send(
+              encodeTerminalPayload({ data: ESCAPED_CARRIAGE_RETURN }),
+            );
+          }
+          return false;
+        }
 
-		const fitAddon = new FitAddon();
-		fitAddonRef.current = fitAddon;
-		nextTerminal.loadAddon(fitAddon);
-		nextTerminal.loadAddon(new Unicode11Addon());
-		nextTerminal.unicode.activeVersion = "11";
-		nextTerminal.loadAddon(
-			new WebLinksAddon((_, uri) => {
-				handleOpenLink(uri);
-			}),
-		);
+        // Ctrl+Shift+C (or Cmd+Shift+C on Mac) → copy selection
+        if (
+          (isMac ? event.metaKey : event.ctrlKey) &&
+          event.shiftKey &&
+          event.key === "C"
+        ) {
+          event.preventDefault();
+          if (event.type === "keydown") {
+            copySelection();
+          }
+          return false;
+        }
 
-		const isMac = navigator.platform.match("Mac");
-		const copySelection = () => {
-			const selection = nextTerminal.getSelection();
-			if (selection) {
-				copyToClipboard(selection);
-			}
-		};
+        return true;
+      });
 
-		// There is no way to remove this handler, so we must attach it once and
-		// rely on a ref to send it to the current socket.
-		nextTerminal.attachCustomKeyEventHandler((event) => {
-			// Make shift+enter send ^[^M (escaped carriage return). Applications
-			// typically take this to mean to insert a literal newline.
-			if (event.shiftKey && event.key === "Enter") {
-				if (event.type === "keydown") {
-					websocketRef.current?.send(
-						encodeTerminalPayload({ data: ESCAPED_CARRIAGE_RETURN }),
-					);
-				}
-				return false;
-			}
+      nextAdapter.onSelectionChange(copySelection);
 
-			// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text.
-			// By default this usually launches the browser dev tools, but users
-			// expect this keybinding to copy when in the context of the web terminal.
-			if (
-				(isMac ? event.metaKey : event.ctrlKey) &&
-				event.shiftKey &&
-				event.key === "C"
-			) {
-				event.preventDefault();
-				if (event.type === "keydown") {
-					copySelection();
-				}
-				return false;
-			}
+      nextAdapter.open(mountNode);
+      nextAdapter.fit();
 
-			return true;
-		});
+      const handleWindowResize = () => nextAdapter?.fit();
+      window.addEventListener("resize", handleWindowResize);
 
-		// Browsers don't support automatic copy to the X11 primary
-		// selection (highlighted text that can be pasted with
-		// middle-click). Instead, copy-on-select writes to the
-		// system clipboard. This means users can't middle-click
-		// paste in the terminal after selecting, but this tradeoff
-		// is necessary because web browsers don't expose primary
-		// selection APIs. Most web terminal users expect Ctrl+V or
-		// right-click paste anyway.
-		nextTerminal.onSelectionChange(() => {
-			copySelection();
-		});
+      const resizeObserver = new ResizeObserver(() => {
+        nextAdapter?.fit();
+      });
+      resizeObserver.observe(mountNode);
 
-		nextTerminal.open(mountNode);
-		refit();
+      setAdapter(nextAdapter);
 
-		window.addEventListener("resize", refit);
+      return () => {
+        window.removeEventListener("resize", handleWindowResize);
+        resizeObserver.disconnect();
+      };
+    };
 
-		const resizeObserver = new ResizeObserver(() => {
-			refit();
-		});
-		resizeObserver.observe(mountNode);
+    const cleanupPromise = setupAdapter();
 
-		setTerminal(nextTerminal);
+    return () => {
+      disposed = true;
+      cleanupPromise.then((cleanup) => {
+        cleanup?.();
+        nextAdapter?.dispose();
+        setAdapter(undefined);
+      });
+    };
+  }, [
+    hasBeenVisible,
+    terminalEngine,
+    copyToClipboard,
+    handleOpenLink,
+    renderer,
+    reportTerminalError,
+    terminalFontFamily,
+    backgroundColor,
+  ]);
 
-		return () => {
-			window.removeEventListener("resize", refit);
-			resizeObserver.disconnect();
-			fitAddonRef.current = undefined;
-			nextTerminal.dispose();
-			setTerminal(undefined);
-		};
-	}, [
-		hasBeenVisible,
-		copyToClipboard,
-		handleOpenLink,
-		refit,
-		renderer,
-		reportTerminalError,
-		terminalFontFamily,
-		backgroundColor,
-	]);
+  // ---------------------------------------------------------------------------
+  // Effect: refit when visibility is restored
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+    refit();
+  }, [isVisible, refit]);
 
-	useEffect(() => {
-		if (!isVisible) {
-			return;
-		}
+  // ---------------------------------------------------------------------------
+  // Effect: connect WebSocket once the adapter is ready
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!adapter || !hasBeenVisible) {
+      return;
+    }
 
-		refit();
-	}, [isVisible, refit]);
+    adapter.clear();
+    if (autoFocus) {
+      adapter.focus();
+    }
+    adapter.setOptions({ disableStdin: true });
 
-	useEffect(() => {
-		if (!terminal || !hasBeenVisible) {
-			return;
-		}
+    if (loading) {
+      return;
+    }
 
-		terminal.clear();
-		if (autoFocus) {
-			terminal.focus();
-		}
-		terminal.options.disableStdin = true;
+    if (errorMessage) {
+      adapter.writeln(errorMessage);
+      handleStatusChange("disconnected");
+      return;
+    }
 
-		if (loading) {
-			return;
-		}
+    if (!agentId) {
+      const error = new Error("Terminal requires agentId to connect");
+      reportTerminalError(error);
+      adapter.writeln(error.message);
+      handleStatusChange("disconnected");
+      return;
+    }
 
-		if (errorMessage) {
-			terminal.writeln(errorMessage);
-			handleStatusChange("disconnected");
-			return;
-		}
+    refit();
+    const initialDimensions = getTerminalDimensions(adapter) ?? {
+      height: 24,
+      width: 80,
+    };
 
-		if (!agentId) {
-			const error = new Error("Terminal requires agentId to connect");
-			reportTerminalError(error);
-			terminal.writeln(error.message);
-			handleStatusChange("disconnected");
-			return;
-		}
+    let websocket: Websocket | null;
+    const disposers = [
+      adapter.onData((data) => {
+        websocket?.send(encodeTerminalPayload({ data }));
+      }),
+      adapter.onResize((cols, rows) => {
+        if (rows <= 0 || cols <= 0) {
+          reportTerminalError(
+            new Error(
+              `Terminal received non-positive resize: ${rows}x${cols}`,
+            ),
+          );
+          return;
+        }
+        websocket?.send(encodeTerminalPayload({ height: rows, width: cols }));
+      }),
+    ];
 
-		refit();
-		// Fall back to standard dimensions if the terminal hasn't rendered
-		// yet (e.g. fit() failed during renderer startup). The correct
-		// size will be sent once the ResizeObserver fires.
-		const initialDimensions = getTerminalDimensions(terminal) ?? {
-			height: 24,
-			width: 80,
-		};
+    let disposed = false;
+    terminalWebsocketUrl(
+      baseUrl,
+      reconnectionToken,
+      agentId,
+      initialCommand,
+      initialDimensions.height,
+      initialDimensions.width,
+      containerName,
+      containerUser,
+    )
+      .then((url) => {
+        if (disposed) {
+          return;
+        }
 
-		let websocket: Websocket | null;
-		const disposers = [
-			terminal.onData((data) => {
-				websocket?.send(encodeTerminalPayload({ data }));
-			}),
-			terminal.onResize((event) => {
-				if (event.rows <= 0 || event.cols <= 0) {
-					reportTerminalError(
-						new Error(
-							`Terminal received non-positive resize: ${event.rows}x${event.cols}`,
-						),
-					);
-					return;
-				}
+        websocket = new WebsocketBuilder(url)
+          .withBackoff(new ExponentialBackoff(1000, 6))
+          .build();
 
-				websocket?.send(
-					encodeTerminalPayload({ height: event.rows, width: event.cols }),
-				);
-			}),
-		];
+        const scheduleTerminalResize = () => {
+          window.setTimeout(() => {
+            if (disposed) {
+              return;
+            }
+            const dimensions = getTerminalDimensions(adapter);
+            if (!dimensions) {
+              return;
+            }
+            websocket?.send(
+              encodeTerminalPayload({
+                height: dimensions.height,
+                width: dimensions.width,
+              }),
+            );
+          }, 0);
+        };
 
-		let disposed = false;
-		terminalWebsocketUrl(
-			baseUrl,
-			reconnectionToken,
-			agentId,
-			initialCommand,
-			initialDimensions.height,
-			initialDimensions.width,
-			containerName,
-			containerUser,
-		)
-			.then((url) => {
-				if (disposed) {
-					return;
-				}
+        websocket.binaryType = "arraybuffer";
+        websocketRef.current = websocket;
 
-				websocket = new WebsocketBuilder(url)
-					.withBackoff(new ExponentialBackoff(1000, 6))
-					.build();
-				const scheduleTerminalResize = () => {
-					window.setTimeout(() => {
-						if (disposed) {
-							return;
-						}
+        websocket.addEventListener(WebsocketEvent.open, () => {
+          if (disposed) {
+            return;
+          }
+          adapter.setOptions({
+            disableStdin: false,
+            windowsMode: operatingSystem === "windows",
+          });
+          refit();
+          scheduleTerminalResize();
+          handleStatusChange("connected");
+        });
 
-						const dimensions = getTerminalDimensions(terminal);
-						if (!dimensions) {
-							return;
-						}
+        websocket.addEventListener(WebsocketEvent.error, (_, event) => {
+          if (disposed) {
+            return;
+          }
+          console.error("WebSocket error:", event);
+          adapter.setOptions({ disableStdin: true });
+          handleStatusChange("disconnected");
+        });
 
-						websocket?.send(
-							encodeTerminalPayload({
-								height: dimensions.height,
-								width: dimensions.width,
-							}),
-						);
-					}, 0);
-				};
-				websocket.binaryType = "arraybuffer";
-				websocketRef.current = websocket;
-				websocket.addEventListener(WebsocketEvent.open, () => {
-					if (disposed) {
-						return;
-					}
-					terminal.options = {
-						disableStdin: false,
-						windowsMode: operatingSystem === "windows",
-					};
-					refit();
-					scheduleTerminalResize();
-					handleStatusChange("connected");
-				});
-				websocket.addEventListener(WebsocketEvent.error, (_, event) => {
-					if (disposed) {
-						return;
-					}
-					console.error("WebSocket error:", event);
-					terminal.options.disableStdin = true;
-					handleStatusChange("disconnected");
-				});
-				websocket.addEventListener(WebsocketEvent.close, () => {
-					if (disposed) {
-						return;
-					}
-					terminal.options.disableStdin = true;
-					handleStatusChange("disconnected");
-				});
-				websocket.addEventListener(WebsocketEvent.message, (_, event) => {
-					if (disposed) {
-						return;
-					}
-					if (typeof event.data === "string") {
-						// This exclusively occurs when testing.
-						// "jest-websocket-mock" doesn't support ArrayBuffer.
-						terminal.write(event.data);
-					} else {
-						terminal.write(new Uint8Array(event.data));
-					}
-				});
-				websocket.addEventListener(WebsocketEvent.reconnect, () => {
-					if (disposed || !websocket) {
-						return;
-					}
+        websocket.addEventListener(WebsocketEvent.close, () => {
+          if (disposed) {
+            return;
+          }
+          adapter.setOptions({ disableStdin: true });
+          handleStatusChange("disconnected");
+        });
 
-					websocket.binaryType = "arraybuffer";
-					refit();
-					const dimensions = getTerminalDimensions(terminal);
-					if (!dimensions) {
-						return;
-					}
-					websocket.send(
-						encodeTerminalPayload({
-							height: dimensions.height,
-							width: dimensions.width,
-						}),
-					);
-				});
-			})
-			.catch((error) => {
-				if (disposed) {
-					return;
-				}
-				console.error("WebSocket connection failed:", error);
-				reportTerminalError(
-					error instanceof Error ? error : new Error(String(error)),
-				);
-				handleStatusChange("disconnected");
-			});
+        websocket.addEventListener(WebsocketEvent.message, (_, event) => {
+          if (disposed) {
+            return;
+          }
+          if (typeof event.data === "string") {
+            // This exclusively occurs when testing.
+            // "jest-websocket-mock" doesn't support ArrayBuffer.
+            adapter.write(event.data);
+          } else {
+            adapter.write(new Uint8Array(event.data));
+          }
+        });
 
-		return () => {
-			disposed = true;
-			for (const disposer of disposers) {
-				disposer.dispose();
-			}
-			websocket?.close(1000);
-			websocketRef.current = undefined;
-		};
-	}, [
-		hasBeenVisible,
-		agentId,
-		autoFocus,
-		baseUrl,
-		containerName,
-		containerUser,
-		errorMessage,
-		getTerminalDimensions,
-		handleStatusChange,
-		initialCommand,
-		loading,
-		operatingSystem,
-		reconnectionToken,
-		refit,
-		reportTerminalError,
-		terminal,
-	]);
+        websocket.addEventListener(WebsocketEvent.reconnect, () => {
+          if (disposed || !websocket) {
+            return;
+          }
+          websocket.binaryType = "arraybuffer";
+          refit();
+          const dimensions = getTerminalDimensions(adapter);
+          if (!dimensions) {
+            return;
+          }
+          websocket.send(
+            encodeTerminalPayload({
+              height: dimensions.height,
+              width: dimensions.width,
+            }),
+          );
+        });
+      })
+      .catch((error) => {
+        if (disposed) {
+          return;
+        }
+        console.error("WebSocket connection failed:", error);
+        reportTerminalError(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+        handleStatusChange("disconnected");
+      });
 
-	const terminalScopeSelector = `[data-terminal-scope="${scopeId}"]`;
+    return () => {
+      disposed = true;
+      for (const disposer of disposers) {
+        disposer.dispose();
+      }
+      websocket?.close(1000);
+      websocketRef.current = undefined;
+    };
+  }, [
+    hasBeenVisible,
+    agentId,
+    autoFocus,
+    baseUrl,
+    containerName,
+    containerUser,
+    errorMessage,
+    getTerminalDimensions,
+    handleStatusChange,
+    initialCommand,
+    loading,
+    operatingSystem,
+    reconnectionToken,
+    refit,
+    reportTerminalError,
+    adapter,
+  ]);
 
-	return (
-		<>
-			<style>{`
-				${terminalScopeSelector} .xterm {
-					padding: 4px;
-					width: 100%;
-					height: 100%;
-				}
+  const terminalScopeSelector = `[data-terminal-scope="${scopeId}"]`;
 
-				${terminalScopeSelector} .xterm-viewport {
-					/* This is required to force full-width on the terminal. */
-					/* Otherwise there's a small white bar to the right of the scrollbar. */
-					width: auto !important;
-				}
+  // Only inject xterm-specific CSS when using the xterm engine.
+  const xtermStyles =
+    terminalEngine === "xterm"
+      ? `
+      ${terminalScopeSelector} .xterm {
+        padding: 4px;
+        width: 100%;
+        height: 100%;
+      }
 
-				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar {
-					width: 10px;
-				}
+      ${terminalScopeSelector} .xterm-viewport {
+        /* This is required to force full-width on the terminal. */
+        /* Otherwise there's a small white bar to the right of the scrollbar. */
+        width: auto !important;
+      }
 
-				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-track {
-					background-color: inherit;
-				}
+      ${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar {
+        width: 10px;
+      }
 
-				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-thumb {
-					min-height: 20px;
-					background-color: rgba(255, 255, 255, 0.18);
-				}
-			`}</style>
-			<div
-				className={cn(
-					"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
-					className,
-				)}
-				ref={terminalWrapperRef}
-				data-terminal-scope={scopeId}
-				data-testid={testId}
-			/>
-		</>
-	);
+      ${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-track {
+        background-color: inherit;
+      }
+
+      ${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-thumb {
+        min-height: 20px;
+        background-color: rgba(255, 255, 255, 0.18);
+      }
+    `
+      : "";
+
+  return (
+    <>
+      {xtermStyles && <style>{xtermStyles}</style>}
+      <div
+        className={cn(
+          "workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
+          className,
+        )}
+        ref={terminalWrapperRef}
+        data-terminal-scope={scopeId}
+        data-testid={testId}
+      />
+    </>
+  );
 };

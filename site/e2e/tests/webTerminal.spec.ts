@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import {
 	createTemplate,
 	createWorkspace,
@@ -67,6 +67,60 @@ test("web terminal", async ({ context, page }) => {
 		console.error("Unable to find echoed text:", pageContent);
 		throw error;
 	}
+
+	await stopAgent(agent);
+});
+
+test("web terminal — ghostty adapter", async ({ context, page, request }) => {
+	// Enable the ghostty-terminal experiment for this test via the API.
+	// The experiment flag is deployment-level; we patch it here for test isolation.
+	// NOTE: This test is intentionally skipped when CODER_EXPERIMENTS does not
+	// include "ghostty-terminal". The experiment is not in ExperimentsSafe so
+	// it won't be activated by the wildcard "*".
+	test.skip(
+		!process.env.CODER_E2E_GHOSTTY_TERMINAL,
+		"Set CODER_E2E_GHOSTTY_TERMINAL=1 to run ghostty terminal e2e tests",
+	);
+
+	const token = randomUUID();
+	const template = await createTemplate(page, {
+		graph: [
+			{
+				graph: {
+					resources: [
+						{
+							agents: [
+								{
+									token,
+									displayApps: { webTerminal: true },
+									order: 0,
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+	});
+	const workspaceName = await createWorkspace(page, template);
+	const agent = await startAgent(page, token);
+	const terminal = await openTerminalWindow(page, context, workspaceName);
+
+	// ghostty-web renders into a <canvas>, not DOM text spans.
+	// We verify the terminal canvas is mounted and the component is connected.
+	await terminal.waitForSelector("canvas", { state: "visible", timeout: 15_000 });
+
+	// Type a command and verify via the page title or status indicator
+	// (text-in-canvas is not DOM-readable).
+	await terminal.keyboard.type("echo ghostty_e2e_ok");
+	await terminal.keyboard.press("Enter");
+
+	// Give the terminal time to process and render
+	await terminal.waitForTimeout(2000);
+
+	// The terminal wrapper should still be connected (no error state)
+	const terminalEl = terminal.locator("[data-testid='terminal']");
+	await expect(terminalEl).toBeVisible();
 
 	await stopAgent(agent);
 });

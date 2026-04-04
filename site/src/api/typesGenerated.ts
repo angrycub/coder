@@ -3243,6 +3243,7 @@ export type Experiment =
 	| "agents"
 	| "auto-fill-parameters"
 	| "example"
+	| "ghostty-terminal"
 	| "mcp-server-http"
 	| "notifications"
 	| "oauth2"
@@ -3254,6 +3255,7 @@ export const Experiments: Experiment[] = [
 	"agents",
 	"auto-fill-parameters",
 	"example",
+	"ghostty-terminal",
 	"mcp-server-http",
 	"notifications",
 	"oauth2",

@@ -4346,6 +4346,7 @@ const (
 	ExperimentAgents                Experiment = "agents"                  // Enables agent-powered chat functionality.
 	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
+	ExperimentGhosttyTerminal       Experiment = "ghostty-terminal"        // Use ghostty-web instead of xterm.js for the web terminal.
 )
 
 func (e Experiment) DisplayName() string {
@@ -4368,6 +4369,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
+	case ExperimentGhosttyTerminal:
+		return "Ghostty Web Terminal"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -4387,6 +4390,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentAgents,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceBuildUpdates,
+	ExperimentGhosttyTerminal,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

@@ -1,7 +1,7 @@
 import { waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import {
 	MockUserOwner,
@@ -180,5 +180,142 @@ describe("TerminalPage", () => {
 		await userEvent.type(terminal[0], "{Shift>}{Enter}{/Shift}");
 		const req = JSON.parse(new TextDecoder().decode((await msg) as Uint8Array));
 		expect(req.data).toBe("\x1b\r");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Ghostty adapter tests
+// ---------------------------------------------------------------------------
+
+// Mock ghostty-web so the WASM binary is never loaded in unit tests.
+// The mock exposes the same Terminal API surface that GhosttyAdapter uses.
+vi.mock("ghostty-web", () => {
+	class MockGhosttyTerminal {
+		cols = 80;
+		rows = 24;
+		private _onDataHandlers: Array<(data: string) => void> = [];
+		private _onResizeHandlers: Array<
+			(e: { cols: number; rows: number }) => void
+		> = [];
+		private _onSelectionChangeHandlers: Array<() => void> = [];
+		private _keyHandlers: Array<(e: KeyboardEvent) => boolean> = [];
+
+		open = vi.fn();
+		write = vi.fn();
+		resize = vi.fn((cols: number, rows: number) => {
+			this.cols = cols;
+			this.rows = rows;
+		});
+		clear = vi.fn();
+		focus = vi.fn();
+		writeln = vi.fn();
+		dispose = vi.fn();
+		getSelection = vi.fn(() => "");
+
+		onData(handler: (data: string) => void) {
+			this._onDataHandlers.push(handler);
+			return { dispose: () => {} };
+		}
+		onResize(handler: (e: { cols: number; rows: number }) => void) {
+			this._onResizeHandlers.push(handler);
+			return { dispose: () => {} };
+		}
+		onSelectionChange(handler: () => void) {
+			this._onSelectionChangeHandlers.push(handler);
+			return { dispose: () => {} };
+		}
+		attachCustomKeyEventHandler(handler: (e: KeyboardEvent) => boolean) {
+			this._keyHandlers.push(handler);
+		}
+
+		// Test helpers — not part of the real API
+		simulateData(data: string) {
+			for (const h of this._onDataHandlers) h(data);
+		}
+		simulateKey(event: Partial<KeyboardEvent>) {
+			for (const h of this._keyHandlers)
+				h(event as KeyboardEvent);
+		}
+	}
+
+	let instance: MockGhosttyTerminal | null = null;
+
+	return {
+		init: vi.fn().mockResolvedValue(undefined),
+		Terminal: vi.fn().mockImplementation(() => {
+			instance = new MockGhosttyTerminal();
+			return instance;
+		}),
+		// Expose the last created instance for test assertions
+		__getMockInstance: () => instance,
+	};
+});
+
+describe("TerminalPage — ghostty adapter", () => {
+	beforeEach(() => {
+		server.use(
+			http.get("/api/v2/experiments", () =>
+				HttpResponse.json(["ghostty-terminal"]),
+			),
+		);
+	});
+
+	afterEach(async () => {
+		vi.restoreAllMocks();
+		await WS.clean();
+	});
+
+	const renderTerminalWithGhostty = async (
+		route = `/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
+	) => {
+		const utils = renderWithAuth(<TerminalPage />, {
+			route,
+			path: "/:username/:workspace/terminal",
+		});
+		await waitFor(() => {
+			const wrapper =
+				utils.container.querySelector<HTMLDivElement>("[data-status]")!;
+			expect(wrapper.dataset.status).not.toBe("initializing");
+		});
+		return utils;
+	};
+
+	it("loads the right workspace data with ghostty adapter", async () => {
+		vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockWorkspace,
+		);
+		createWorkspaceTerminalWebSocket();
+		await renderTerminalWithGhostty(
+			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
+		);
+		await waitFor(() => {
+			expect(API.getWorkspaceByOwnerAndName).toHaveBeenCalledWith(
+				MockUserOwner.username,
+				MockWorkspace.name,
+				{ include_deleted: true },
+			);
+		});
+	});
+
+	it("shows reconnect message when websocket fails (ghostty)", async () => {
+		server.use(
+			http.get("/api/v2/workspaceagents/:agentId/pty", () => {
+				return HttpResponse.json({}, { status: 500 });
+			}),
+		);
+		const { container } = await renderTerminalWithGhostty();
+		await waitFor(() => {
+			expect(container.textContent).toContain("Trying to connect...");
+		});
+	});
+
+	it("resizes on connect (ghostty)", async () => {
+		const ws = createWorkspaceTerminalWebSocket();
+		const resizeMessage = ws.nextMessage;
+		await renderTerminalWithGhostty();
+		const msg = await resizeMessage;
+		const req = JSON.parse(new TextDecoder().decode(msg as Uint8Array));
+		expect(req.height).toBeGreaterThan(0);
+		expect(req.width).toBeGreaterThan(0);
 	});
 });

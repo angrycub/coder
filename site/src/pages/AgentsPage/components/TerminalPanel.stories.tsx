@@ -94,3 +94,25 @@ export const Disconnected: Story = {
 		webSocket: [{ event: "error" }],
 	},
 };
+
+export const GhosttyConnected: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		webSocket: [{ event: "message", data: promptMessage }],
+		queries: [
+			...terminalQueries.filter((q) => q.key[0] !== "experiments"),
+			{ key: ["experiments"], data: ["ghostty-terminal"] },
+		],
+		chromatic: { disableSnapshot: true },
+	},
+};
+
+export const GhosttyDisconnected: Story = {
+	parameters: {
+		queries: [
+			...terminalQueries.filter((q) => q.key[0] !== "experiments"),
+			{ key: ["experiments"], data: ["ghostty-terminal"] },
+		],
+		chromatic: { disableSnapshot: true },
+	},
+};
