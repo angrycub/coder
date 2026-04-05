@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { QueryKey } from "react-query";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -225,6 +226,8 @@ export const BottomMessage: Story = {
 	},
 };
 
+type StoryQuery = { key: QueryKey; data: unknown; isError?: boolean };
+
 export const GhosttyReady: Story = {
 	decorators: [withWebSocket],
 	parameters: {
@@ -236,10 +239,10 @@ export const GhosttyReady: Story = {
 			},
 		],
 		queries: [
-			...(meta.parameters.queries as { key: unknown[] }[]).filter(
-				(q) => !(q.key[0] === "experiments"),
+			...(meta.parameters.queries as StoryQuery[]).filter(
+				(q) => q.key[0] !== "experiments",
 			),
-			{ key: ["experiments"], data: ["ghostty-terminal"] },
+			{ key: ["experiments"], data: ["ghostty-terminal"] } satisfies StoryQuery,
 			createWorkspaceWithAgent("ready"),
 		],
 		chromatic: { disableSnapshot: true },
@@ -250,10 +253,10 @@ export const GhosttyStartError: Story = {
 	parameters: {
 		...meta.parameters,
 		queries: [
-			...(meta.parameters.queries as { key: unknown[] }[]).filter(
-				(q) => !(q.key[0] === "experiments"),
+			...(meta.parameters.queries as StoryQuery[]).filter(
+				(q) => q.key[0] !== "experiments",
 			),
-			{ key: ["experiments"], data: ["ghostty-terminal"] },
+			{ key: ["experiments"], data: ["ghostty-terminal"] } satisfies StoryQuery,
 			createWorkspaceWithAgent("start_error"),
 		],
 		chromatic: { disableSnapshot: true },
