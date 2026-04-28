@@ -36,12 +36,14 @@ func TestCSP(t *testing.T) {
 		"frame-src 'self' *.test.com *.coder.com *.coder2.com",
 		"media-src 'self' " + strings.Join(expectedMedia, " "),
 		strings.Join([]string{
-			"connect-src", "'self'",
+			"connect-src", "'self'", "data:",
 			// Added from host header.
 			"wss://example.com", "ws://example.com",
 			// Added via proxy hosts.
 			"wss://test.com", "ws://test.com", "https://test.com", "http://test.com",
 			"wss://coder.com", "ws://coder.com", "https://coder.com", "http://coder.com",
+			// example.com is also a proxy host, so http/https are added too.
+			"https://example.com", "http://example.com",
 		}, " "),
 	}
 

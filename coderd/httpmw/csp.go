@@ -69,10 +69,12 @@ func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, stat
 			cspSrcs := cspDirectives{
 				// All omitted fetch csp srcs default to this.
 				CSPDirectiveDefaultSrc: {"'self'"},
-				CSPDirectiveConnectSrc: {"'self'"},
+				// data: is required for the Ghostty terminal to load its WASM binary via data: URI.
+				CSPDirectiveConnectSrc: {"'self' data:"},
 				CSPDirectiveChildSrc:   {"'self'"},
 				// https://github.com/suren-atoyan/monaco-react/issues/168
-				CSPDirectiveScriptSrc: {"'self'"},
+				// 'wasm-unsafe-eval' is required for the Ghostty terminal WebAssembly module.
+				CSPDirectiveScriptSrc: {"'self' 'wasm-unsafe-eval'"},
 				CSPDirectiveStyleSrc:  {"'self' 'unsafe-inline'"},
 				// data: is used by monaco editor on FE for Syntax Highlight
 				CSPDirectiveFontSrc:   {"'self' data:"},
