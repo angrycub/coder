@@ -1,0 +1,28 @@
+--- a/site/node_modules/ghostty-web/dist/ghostty-web.js	1985-10-26 08:15:00.000000000 +0000
++++ b/site/node_modules/ghostty-web/dist/ghostty-web.js	2026-04-16 17:06:40.337468753 +0000
+@@ -1338,7 +1338,7 @@
+     const g = A.getContext("2d", { alpha: !0 });
+     if (!g)
+       throw new Error("Failed to get 2D rendering context");
+-    this.ctx = g, this.fontSize = B.fontSize ?? 15, this.fontFamily = B.fontFamily ?? "monospace", this.cursorStyle = B.cursorStyle ?? "block", this.cursorBlink = B.cursorBlink ?? !1, this.theme = { ...f, ...B.theme }, this.devicePixelRatio = B.devicePixelRatio ?? window.devicePixelRatio ?? 1, this.palette = [
++    this.ctx = g, this.ctx.fontVariantLigatures = "normal", this.fontSize = B.fontSize ?? 15, this.fontFamily = B.fontFamily ?? "monospace", this.cursorStyle = B.cursorStyle ?? "block", this.cursorBlink = B.cursorBlink ?? !1, this.theme = { ...f, ...B.theme }, this.devicePixelRatio = B.devicePixelRatio ?? window.devicePixelRatio ?? 1, this.palette = [
+       this.theme.black,
+       this.theme.red,
+       this.theme.green,
+@@ -1363,6 +1363,7 @@
+   measureFont() {
+     const B = document.createElement("canvas").getContext("2d");
+     B.font = `${this.fontSize}px ${this.fontFamily}`;
++    B.fontVariantLigatures = "normal";
+     const g = B.measureText("M"), E = Math.ceil(g.width), C = g.actualBoundingBoxAscent || this.fontSize * 0.8, I = g.actualBoundingBoxDescent || this.fontSize * 0.2, D = Math.ceil(C + I) + 2, i = Math.ceil(C) + 1;
+     return { width: E, height: D, baseline: i };
+   }
+@@ -1526,7 +1527,7 @@
+       return;
+     const D = this.isInSelection(B, g);
+     let i = "";
+-    if (A.flags & e.ITALIC && (i += "italic "), A.flags & e.BOLD && (i += "bold "), this.ctx.font = `${i}${this.fontSize}px ${this.fontFamily}`, D)
++    if (A.flags & e.ITALIC && (i += "italic "), A.flags & e.BOLD && (i += "bold "), this.ctx.font = `${i}${this.fontSize}px ${this.fontFamily}`, this.ctx.fontVariantLigatures = "normal", D)
+       this.ctx.fillStyle = this.theme.selectionForeground;
+     else {
+       let M = A.fg_r, a = A.fg_g, h = A.fg_b;
